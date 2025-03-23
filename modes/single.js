@@ -1,44 +1,63 @@
-// single.js
+// modes/single.js
 
 const fs = require('fs');
 const path = require('path');
 const log = require('../utils/logger');
+const restoreSourcesFromMap = require('../utils/restoreSourcesFromMap');
+const { fetchToMemory, fetchToFile } = require('../utils/fetchInsecure');
 
-function timestampedOutputDir(base = 'restored_sources') {
-    const stamp = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0];
-    return path.join(base, stamp);
-}
-
-module.exports = function(mapFilePath, outputDir) {
-    if (!fs.existsSync(mapFilePath)) {
-        log.error(`File not found: ${mapFilePath}`);
-        return;
-    }
-
-    const finalOutputDir = outputDir || timestampedOutputDir();
-
+module.exports = async function(scriptUrl) {
     try {
-        const map = JSON.parse(fs.readFileSync(mapFilePath, 'utf8'));
-        log.info(`Loaded sourcemap: ${mapFilePath}`);
+        const { hostname } = new URL(scriptUrl);
+        const BASE_DIR = path.resolve(__dirname, `../output/${hostname}`);
+        const DOWNLOAD_DIR = path.join(BASE_DIR, 'downloaded_site');
+        const RESTORE_DIR = path.join(BASE_DIR, 'restored_sources');
 
-        map.sources.forEach((source, index) => {
-            const content = map.sourcesContent?.[index];
-            if (!content) return;
+        if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+        if (!fs.existsSync(RESTORE_DIR)) fs.mkdirSync(RESTORE_DIR, { recursive: true });
 
-            let sanitizedPath = source
-                .replace(/^webpack:\/\/+/, '')
-                .replace(/^[A-Za-z]:/, '')
-                .replace(/^\/\/+/, '')
-                .replace(/[:*?"<>|]/g, '_')
-                .replace(/\.\./g, '__');
+        const filename = path.basename(scriptUrl);
+        const filepath = path.join(DOWNLOAD_DIR, filename);
 
-            const outputPath = path.join(finalOutputDir, sanitizedPath);
-            fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-            fs.writeFileSync(outputPath, content, 'utf8');
-            log.info(`Restored: ${outputPath}`);
-        });
+        await fetchToFile(scriptUrl, filepath);
+        log.info(`✅ Downloaded script: ${filename}`);
 
+        const contents = fs.readFileSync(filepath, 'utf-8');
+        const lines = contents.trim().split('\n').reverse();
+
+        let mapUrlRelative = null;
+        for (const line of lines) {
+            const match = line.match(/sourceMappingURL\s*=\s*(.+)/i);
+            if (match) {
+                const candidate = match[1].trim();
+                if (!candidate.startsWith('data:')) {
+                    mapUrlRelative = candidate;
+                    break;
+                } else {
+                    log.warn(`⚠️  Found embedded data URI in ${filename}, skipping`);
+                }
+            }
+        }
+
+        if (!mapUrlRelative) {
+            log.warn(`⚠️  No usable sourceMappingURL found at end of ${filename}`);
+            return;
+        }
+
+        const mapUrl = new URL(mapUrlRelative, scriptUrl).href;
+        const mapName = path.basename(mapUrl.split('?')[0]);
+        const mapPath = path.join(DOWNLOAD_DIR, mapName);
+
+        log.info(`🌐 Found sourcemap reference: ${mapUrl}`);
+
+        try {
+            await fetchToFile(mapUrl, mapPath);
+            log.info(`✅ Downloaded sourcemap: ${mapName}`);
+            restoreSourcesFromMap(mapPath, RESTORE_DIR);
+        } catch (err) {
+            log.error(`❌ Failed to download map from ${mapUrl}: ${err.message}`);
+        }
     } catch (err) {
-        log.error(`Failed to parse sourcemap: ${err.message}`);
+        log.error(`❌ Failed processing single URL ${scriptUrl}: ${err.message}`);
     }
 };

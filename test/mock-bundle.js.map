@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "file": "bundle.js",
+  "sources": ["src/app.js", "src/utils/logger.js", "src/main.css"],
+  "sourcesContent": [
+    "console.log('Hello from app.js');",
+    "module.exports = function log(msg) { console.log('[LOG]', msg); };",
+    "body { background: #000; color: #fff; }"
+  ],
+  "names": [],
+  "mappings": ""
+}
+

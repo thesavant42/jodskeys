@@ -1,51 +1,85 @@
-// local.js
+// modes/local.js
 
 const fs = require('fs');
 const path = require('path');
 const log = require('../utils/logger');
+const restoreSourcesFromMap = require('../utils/restoreSourcesFromMap');
 
-function walk(dir, recursive = false) {
-    let results = [];
-    const list = fs.readdirSync(dir);
-    list.forEach(file => {
-        const filepath = path.join(dir, file);
-        const stat = fs.statSync(filepath);
-        if (stat && stat.isDirectory()) {
-            if (recursive) results = results.concat(walk(filepath, true));
-        } else if (file.endsWith('.map')) {
-            results.push(filepath);
+function walkJsFiles(dir, fileList = []) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            walkJsFiles(fullPath, fileList);
+        } else if (entry.isFile() && entry.name.endsWith('.js')) {
+            fileList.push(fullPath);
         }
-    });
-    return results;
+    }
+
+    return fileList;
 }
 
-module.exports = async function(inputDir, recursiveFlag = '', outputDir = 'restored_sources') {
-    const recursive = recursiveFlag === '--recursive';
-    const files = walk(inputDir, recursive);
-    log.info(`Found ${files.length} .map files in ${inputDir}`);
+module.exports = function(inputDir = 'output') {
+    try {
+        const baseDir = path.resolve(inputDir);
 
-    files.forEach(mapFile => {
-        try {
-            const map = JSON.parse(fs.readFileSync(mapFile, 'utf8'));
-            const basePath = path.dirname(mapFile);
-            map.sources.forEach((source, index) => {
-                const content = map.sourcesContent?.[index];
-                if (!content) return;
+        const domains = fs.readdirSync(baseDir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map(entry => entry.name);
 
-                let sanitizedPath = source
-                    .replace(/^webpack:\/\/+/, '')
-                    .replace(/^[A-Za-z]:/, '')
-                    .replace(/^\/\/+/, '')
-                    .replace(/[:*?"<>|]/g, '_')
-                    .replace(/\.\./g, '__');
+        for (const domain of domains) {
+            const downloadPath = path.join(baseDir, domain, 'downloaded_site');
+            const restorePath = path.join(baseDir, domain, 'restored_sources');
 
-                const outputPath = path.join(outputDir, sanitizedPath);
-                fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-                fs.writeFileSync(outputPath, content, 'utf8');
-                log.info(`Restored: ${outputPath}`);
-            });
-        } catch (err) {
-            log.warn(`Skipping invalid .map file: ${mapFile}`);
+            if (!fs.existsSync(downloadPath)) {
+                log.warn(`⚠️  No downloaded_site folder found for domain: ${domain}`);
+                continue;
+            }
+
+            if (!fs.existsSync(restorePath)) {
+                fs.mkdirSync(restorePath, { recursive: true });
+            }
+
+            const jsFiles = walkJsFiles(downloadPath);
+
+            for (const jsFile of jsFiles) {
+                try {
+                    const contents = fs.readFileSync(jsFile, 'utf-8');
+                    const lines = contents.trim().split('\n').reverse();
+
+                    let mapFileName = null;
+
+                    for (const line of lines) {
+                        const match = line.match(/sourceMappingURL\s*=\s*(.+)/i);
+                        if (match) {
+                            const candidate = match[1].trim();
+                            if (!candidate.startsWith('data:')) {
+                                mapFileName = candidate.split('?')[0];
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!mapFileName) {
+                        log.warn(`⚠️  No usable sourceMappingURL found at end of ${path.basename(jsFile)}`);
+                        continue;
+                    }
+
+                    const mapPath = path.join(path.dirname(jsFile), mapFileName);
+                    if (!fs.existsSync(mapPath)) {
+                        log.warn(`❌ Map file not found: ${mapPath}`);
+                        continue;
+                    }
+
+                    log.info(`📄 Processing map: ${mapPath}`);
+                    restoreSourcesFromMap(mapPath, restorePath);
+                } catch (err) {
+                    log.error(`❌ Error processing ${jsFile}: ${err.message}`);
+                }
+            }
         }
-    });
+    } catch (err) {
+        log.error(`❌ Failed to scan local output: ${err.message}`);
+    }
 };
