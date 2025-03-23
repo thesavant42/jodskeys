@@ -22,7 +22,7 @@ This project uses `chalk@4` for colorful CLI output. Do **not** upgrade to Chalk
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ```bash
 jodskeys <mode> [options]
@@ -71,7 +71,7 @@ jodskeys url https://target.site
 
 ---
 
-## 🧙 Author
+## ☠️ Author
 **savant42** — inspired by Jod’s skeleton key from *Skeleton Crew*.
 
 ---
