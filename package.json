@@ -1,5 +1,5 @@
 {
-  "name": "joddskeys",
+  "name": "jodskeys",
   "version": "1.0.0",
   "description": "🔑 Skeleton key for unlocking and restoring JavaScript source files from .map files.",
   "type": "commonjs",
