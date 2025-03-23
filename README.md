@@ -72,7 +72,7 @@ jodskeys url https://target.site
 ---
 
 ## 🧙 Author
-**savant42** — inspired by Jod Na Nawood from *Skeleton Crew*.
+**savant42** — inspired by Jod’s skeleton key from *Skeleton Crew*.
 
 ---
 

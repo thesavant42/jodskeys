@@ -1,0 +1,7 @@
+logs/
+output/
+*.log
+*.zip
+*.tgz
+test/
+__tests__/

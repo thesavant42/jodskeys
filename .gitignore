@@ -1,0 +1,7 @@
+node_modules/
+logs/
+restored_sources/
+downloaded_site/
+output/
+.DS_Store
+.env
