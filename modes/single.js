@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const log = require('../utils/logger');
 const restoreSourcesFromMap = require('../utils/restoreSourcesFromMap');
-const { fetchToMemory, fetchToFile } = require('../utils/fetchInsecure');
+const { fetchToFile } = require('../utils/fetchInsecure');
+const { extractInlineSourceMapFromFile } = require('../utils/inlineSourceMap');
 
 module.exports = async function(scriptUrl) {
     try {
@@ -21,6 +22,15 @@ module.exports = async function(scriptUrl) {
 
         await fetchToFile(scriptUrl, filepath);
         log.info(`✅ Downloaded script: ${filename}`);
+
+        const inlineResult = extractInlineSourceMapFromFile(filepath);
+        if (inlineResult) {
+            const syntheticMapPath = filepath + '.inline.map';
+            fs.writeFileSync(syntheticMapPath, JSON.stringify(inlineResult.map, null, 2));
+            log.info(`🧩 Saved inline sourcemap: ${path.basename(syntheticMapPath)}`);
+            restoreSourcesFromMap(syntheticMapPath, RESTORE_DIR);
+            return;
+        }
 
         const contents = fs.readFileSync(filepath, 'utf-8');
         const lines = contents.trim().split('\n').reverse();

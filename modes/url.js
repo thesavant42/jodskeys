@@ -6,6 +6,7 @@ const { JSDOM } = require('jsdom');
 const log = require('../utils/logger');
 const restoreSourcesFromMap = require('../utils/restoreSourcesFromMap');
 const { fetchToMemory, fetchToFile } = require('../utils/fetchInsecure');
+const { extractInlineSourceMapFromFile } = require('../utils/inlineSourceMap');
 
 module.exports = async function(url) {
     try {
@@ -32,6 +33,15 @@ module.exports = async function(url) {
             try {
                 await fetchToFile(scriptUrl, filepath);
                 log.info(`✅ Downloaded script: ${filename}`);
+
+                const inlineResult = extractInlineSourceMapFromFile(filepath);
+                if (inlineResult) {
+                    const syntheticMapPath = filepath + '.inline.map';
+                    fs.writeFileSync(syntheticMapPath, JSON.stringify(inlineResult.map, null, 2));
+                    log.info(`🧩 Saved inline sourcemap: ${path.basename(syntheticMapPath)}`);
+                    restoreSourcesFromMap(syntheticMapPath, RESTORE_DIR);
+                    continue;
+                }
 
                 const contents = fs.readFileSync(filepath, 'utf-8');
                 const lines = contents.trim().split('\n').reverse();
