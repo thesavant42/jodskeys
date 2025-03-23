@@ -1,0 +1,19 @@
+{
+  "name": "joddskeys",
+  "version": "1.0.0",
+  "description": "🔑 Skeleton key for unlocking and restoring JavaScript source files from .map files.",
+  "type": "commonjs",
+  "main": "cli.js",
+  "bin": {
+    "joddskeys": "cli.js"
+  },
+  "scripts": {
+    "start": "node cli.js"
+  },
+  "author": "savant42",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4",
+    "jsdom": "^22"
+  }
+}

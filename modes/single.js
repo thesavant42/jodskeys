@@ -1,0 +1,1 @@
+// single.js mode logic placeholder
