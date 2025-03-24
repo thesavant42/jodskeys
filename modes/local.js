@@ -4,82 +4,52 @@ const fs = require('fs');
 const path = require('path');
 const log = require('../utils/logger');
 const restoreSourcesFromMap = require('../utils/restoreSourcesFromMap');
+const { extractInlineSourceMapFromFile } = require('../utils/inlineSourceMap');
+const summarizeSourcemapMetadata = require('../utils/extractMetadata');
 
-function walkJsFiles(dir, fileList = []) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+module.exports = async function () {
+  const outputDir = path.resolve(__dirname, '../output');
+  const domains = fs.readdirSync(outputDir);
 
-    for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            walkJsFiles(fullPath, fileList);
-        } else if (entry.isFile() && entry.name.endsWith('.js')) {
-            fileList.push(fullPath);
-        }
+  for (const domain of domains) {
+    const basePath = path.join(outputDir, domain);
+    const downloadDir = path.join(basePath, 'downloaded_site');
+    const restoreDir = path.join(basePath, 'restored_sources');
+
+    if (!fs.existsSync(downloadDir)) {
+      log.warn(`⚠️  Skipping ${domain}: downloaded_site folder not found.`);
+      continue;
     }
 
-    return fileList;
-}
+    const files = fs.readdirSync(downloadDir).filter(file => file.endsWith('.map') || file.endsWith('.js'));
 
-module.exports = function(inputDir = 'output') {
-    try {
-        const baseDir = path.resolve(inputDir);
+    for (const file of files) {
+      const fullPath = path.join(downloadDir, file);
 
-        const domains = fs.readdirSync(baseDir, { withFileTypes: true })
-            .filter(entry => entry.isDirectory())
-            .map(entry => entry.name);
-
-        for (const domain of domains) {
-            const downloadPath = path.join(baseDir, domain, 'downloaded_site');
-            const restorePath = path.join(baseDir, domain, 'restored_sources');
-
-            if (!fs.existsSync(downloadPath)) {
-                log.warn(`⚠️  No downloaded_site folder found for domain: ${domain}`);
-                continue;
-            }
-
-            if (!fs.existsSync(restorePath)) {
-                fs.mkdirSync(restorePath, { recursive: true });
-            }
-
-            const jsFiles = walkJsFiles(downloadPath);
-
-            for (const jsFile of jsFiles) {
-                try {
-                    const contents = fs.readFileSync(jsFile, 'utf-8');
-                    const lines = contents.trim().split('\n').reverse();
-
-                    let mapFileName = null;
-
-                    for (const line of lines) {
-                        const match = line.match(/sourceMappingURL\s*=\s*(.+)/i);
-                        if (match) {
-                            const candidate = match[1].trim();
-                            if (!candidate.startsWith('data:')) {
-                                mapFileName = candidate.split('?')[0];
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!mapFileName) {
-                        log.warn(`⚠️  No usable sourceMappingURL found at end of ${path.basename(jsFile)}`);
-                        continue;
-                    }
-
-                    const mapPath = path.join(path.dirname(jsFile), mapFileName);
-                    if (!fs.existsSync(mapPath)) {
-                        log.warn(`❌ Map file not found: ${mapPath}`);
-                        continue;
-                    }
-
-                    log.info(`📄 Processing map: ${mapPath}`);
-                    restoreSourcesFromMap(mapPath, restorePath);
-                } catch (err) {
-                    log.error(`❌ Error processing ${jsFile}: ${err.message}`);
-                }
-            }
+      if (file.endsWith('.map')) {
+        try {
+          restoreSourcesFromMap(fullPath, restoreDir);
+          summarizeSourcemapMetadata(fullPath); // Added metadata extraction
+        } catch (err) {
+          log.error(`❌ Failed to restore sources from ${file}: ${err.message}`);
         }
-    } catch (err) {
-        log.error(`❌ Failed to scan local output: ${err.message}`);
+      }
+
+      if (file.endsWith('.js')) {
+        try {
+          const inlineResult = extractInlineSourceMapFromFile(fullPath);
+          if (inlineResult) {
+            const syntheticMapPath = fullPath + '.inline.map';
+            fs.writeFileSync(syntheticMapPath, JSON.stringify(inlineResult.map, null, 2));
+            log.info(`🧩 Saved inline sourcemap: ${path.basename(syntheticMapPath)}`);
+            restoreSourcesFromMap(syntheticMapPath, restoreDir);
+            summarizeSourcemapMetadata(syntheticMapPath); // Added metadata extraction
+          }
+        } catch (err) {
+          log.warn(`⚠️ Inline extraction failed for ${file}: ${err.message}`);
+        }
+      }
     }
+  }
 };
+

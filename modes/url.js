@@ -28,7 +28,9 @@ module.exports = async function(url) {
         for (const script of scripts) {
             const scriptUrl = new URL(script.src, url).href;
             const filename = path.basename(scriptUrl);
-            const filepath = path.join(DOWNLOAD_DIR, filename);
+            const sanitizedFilename = filename.split('?')[0];
+            const filepath = path.join(DOWNLOAD_DIR, sanitizedFilename);
+
 
             try {
                 await fetchToFile(scriptUrl, filepath);
@@ -48,7 +50,7 @@ module.exports = async function(url) {
 
                 let mapUrlRelative = null;
                 for (const line of lines) {
-                    const match = line.match(/sourceMappingURL\s*=\s*(.+)/i);
+                    const match = line.match(/sourceMappingURL\s*=\s*["']?([^"'\s)]+)["']?/i);
                     if (match) {
                         const candidate = match[1].trim();
                         if (!candidate.startsWith('data:')) {
