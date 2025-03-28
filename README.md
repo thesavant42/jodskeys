@@ -1,112 +1,78 @@
-# 🗝️ jodskeys
+## 🔑 jodskeys — Skeleton key for sourcemap extraction
 
-![version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)
-![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![node](https://img.shields.io/badge/node-%3E%3D14.0.0-orange?style=flat-square)
-
-> Skeleton key for unlocking JavaScript source maps — even from hostile, obfuscated, or self-signed hellscapes.
-
-jodskeys downloads `.js` files from live websites or local sources, extracts embedded sourcemap URLs, and reconstructs the original source files into a clean folder structure for inspection, debugging, or reverse engineering.
+jodskeys is a surgical tool for unpacking JavaScript bundles using their sourcemaps. It can restore original folder structures, infer module names, extract inline `sourcesContent`, and now — extract embedded base64 assets (images, fonts, svgs) from restored modules.
 
 ---
 
-## 🚀 Features
+### 🧪 Modes of Operation
 
-- 🔍 **URL Mode** — Crawl a live site, download all scripts, extract and restore sourcemaps
-- 📁 **Local Mode** — Scan previously downloaded `.js` + `.map` files and restore sources
-- 🎯 **Single Mode** — Target a single `.js` file and restore its sources
-- 🔓 **Bypasses TLS validation** — Works on dev servers with self-signed or expired certs
-- 🧼 **Domain-isolated output** — Keeps results clean and segregated per host
-- 🛠 **Supports inline or referenced `.map` files** (skips data URIs by default)
-
----
-
-## 📦 Installation
-
-```bash
-git clone https://github.com/thesavant42/jodskeys.git
-cd jodskeys
-npm install
-npm link  # optional: enables global `jodskeys` command
-```
-
----
-### ⚠️ Chalk Compatibility
-This project uses `chalk@4` for colorful CLI output. Do **not** upgrade to Chalk v5+ unless you migrate this project to ESM syntax.
-
----
-
-## 🧪 Usage
-
-### 🌐 URL Mode
-Extract all sourcemaps from a live site:
-
+#### 1. `url`
 ```bash
 jodskeys url https://example.com
 ```
+- Downloads scripts from a live website.
+- Resolves and downloads all `sourceMappingURL`s.
+- Restores original sources and structure.
 
-### 💾 Local Mode
-Reprocess already-downloaded scripts:
-
+#### 2. `single`
 ```bash
+jodskeys single path/to/bundle.js
+```
+- Extracts inline sourcemaps (if any) from a single JS file.
+- Restores sources to an adjacent folder.
+
+#### 3. `local` (NEW: now path-aware + asset extractor)
+```bash
+# Restore all downloaded domains in ./output
 jodskeys local
-```
 
-### 🎯 Single File Mode
-Target a specific `.js` file:
-
-```bash
-jodskeys single https://example.com/static/bundle.js
+# Restore just one specific target
+jodskeys local output/example.com
 ```
+- Recursively processes any `.js.map` or `.js` files under `downloaded_site/`
+- Extracts inline sourcemaps when present
+- Restores sources into `restored_sources/`
+- NEW: Extracts embedded base64 assets (images/fonts) into `extracted_assets/`
 
 ---
 
-## 📂 Output Structure
+### 📂 Output Layout
 
 ```
 output/
-  example.com/
-    downloaded_site/
-      bundle.js
-      bundle.js.map
-    restored_sources/
-      index.js
-      utils.js
-      App.vue
+├── example.com/
+│   ├── downloaded_site/        # Raw JS + .map files
+│   ├── restored_sources/       # Reconstructed original code
+│   └── extracted_assets/       # Decoded assets from base64 exports
 ```
-
-> 🔐 All domains are sandboxed in separate subfolders to prevent clobbering.
 
 ---
 
-## 🧱 Developer Notes
+### 🧠 Notes
+- Inline sourcemaps are saved as `.inline.map` and restored normally.
+- Assets like `.png`, `.woff`, `.ttf`, `.svg` are decoded from strings like:
+  ```js
+  export default "data:image/png;base64,..."
+  ```
+- Extensions are correctly inferred from MIME types.
+- No more `.woff.woff`, `.svg+xml`, or duplicated folders.
 
-### Insecure Certs?
-You're covered — jodskeys:
-- Ignores certificate validation by default (no flags required)
-- Can crawl dev boxes, staging servers, and broken TLS hosts
+---
 
-### Centralized Fetch Logic
-All TLS-tolerant networking is handled in:
-```js
-utils/fetchInsecure.js
-```
-Update this to modify how downloads work globally.
+### 📦 Packaging a Release
 
-### Test Harness
-Run a local test with a mock `.map` file:
-
+After updating the README and verifying functionality:
+1. Commit changes.
+2. Tag a release:
 ```bash
-node test/test_restoreSourcesFromMap.js
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
+3. Optionally publish to npm or bundle as a GitHub release.
 
 ---
 
-## 🧛‍♂️ Credits
-**Built by [@thesavant42](https://github.com/thesavant42)** — professional red teamer, reverse engineering tactician, and ruthless debugger.
+For usage examples, see the `examples/` directory or run with `--help`.
 
----
-
-## 📜 License
-MIT. Wield responsibly.
+🔐 Happy unlocking.
 
