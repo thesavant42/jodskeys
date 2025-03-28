@@ -5,3 +5,5 @@ downloaded_site/
 output/
 .DS_Store
 .env
+.vscode/
+*.txt
