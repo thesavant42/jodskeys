@@ -52,4 +52,3 @@ module.exports = {
   fetchToMemory,
   fetchToFile,
 };
-

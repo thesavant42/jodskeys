@@ -13,6 +13,7 @@
   "author": "savant42",
   "license": "MIT",
   "dependencies": {
+    "axios": "^1.8.4",
     "chalk": "^4",
     "jsdom": "^22",
     "node-fetch": "^3.3.2"
